@@ -1,0 +1,109 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #23352c;
+  background: #f6f5ef;
+  font-synthesis: none;
+  --forest: #213d31;
+  --muted: #59665f;
+  --line: #dce2d9;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 280px; }
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+button:disabled { opacity: .55; cursor: default; }
+:focus-visible { outline: 2px solid #a36232; outline-offset: 3px; }
+
+.layout { min-height: 100vh; display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+.sidebar { background: var(--forest); color: #fffdf5; padding: 38px 22px; }
+.brand { margin: 0 10px 38px; }
+.brand span { display: block; font-size: .75rem; color: #d9e2d9; }
+.brand strong {
+  display: block;
+  margin-top: 5px;
+  font: normal 2rem Georgia, serif;
+  letter-spacing: -.035em;
+}
+.sidebar nav { display: grid; gap: 5px; }
+.sidebar button {
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+.sidebar button:hover { background: #304f40; }
+.sidebar button[aria-current] { background: #365545; border-color: #799582; }
+
+.content { width: 100%; max-width: 1240px; padding: 48px clamp(22px, 5vw, 68px); }
+header { margin-bottom: 32px; }
+h1 { font: normal clamp(2.2rem, 5vw, 3.5rem)/1.05 Georgia, serif; letter-spacing: -.045em; margin: 0; }
+header p { margin: 12px 0 0; color: var(--muted); }
+h2 { font-size: 1.1rem; margin: 0; }
+
+.panel, .metrics {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px #213d3108;
+  margin: 0 0 20px;
+}
+.panel { padding: 22px; }
+.panel-heading { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.metrics div { padding: 20px 22px; }
+.metrics div + div { border-left: 1px solid var(--line); }
+.metrics dt { color: var(--muted); font-size: .875rem; }
+.metrics dd { margin: 6px 0 0; font: normal 2rem Georgia, serif; }
+
+.form-grid, .loan-form { display: grid; gap: 14px; align-items: end; margin-top: 16px; }
+.form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.loan-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; }
+label { display: grid; gap: 6px; font-size: .875rem; font-weight: 600; }
+input, select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #c4cec3;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  min-height: 42px;
+  padding: 8px 10px;
+  font-size: 1rem;
+  font-weight: normal;
+}
+.primary, .secondary { border: 1px solid var(--line); border-radius: 6px; padding: 9px 13px; font-size: .875rem; min-height: 42px; }
+.primary { background: var(--forest); color: white; border-color: var(--forest); justify-self: start; }
+.primary:hover:not(:disabled) { background: #325a46; }
+.secondary { background: #fff; color: var(--forest); }
+.secondary:hover:not(:disabled) { background: #eef3ed; }
+
+.table-wrap { overflow-x: auto; margin-top: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; text-align: left; }
+th, td { padding: 12px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-size: .8rem; font-weight: 600; background: #f6f8f4; }
+tbody tr:last-child td { border-bottom: 0; }
+.pill { display: inline-block; color: #31553f; background: #ecf2e9; border-radius: 4px; padding: 3px 7px; white-space: nowrap; }
+.warning, .error { background: #faf0e4; color: #783d21; }
+.muted { color: var(--muted); line-height: 1.5; }
+.notice { background: #e9f1e7; border-radius: 6px; padding: 10px 14px; }
+.notice.error { background: #faf0e4; }
+
+@media (max-width: 960px) {
+  .loan-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .layout { display: block; }
+  .sidebar { padding: 18px 16px 12px; }
+  .brand { margin: 0 0 12px; }
+  .sidebar nav { display: flex; flex-wrap: wrap; }
+  .content { padding-block: 28px; }
+}
+@media (max-width: 460px) {
+  .form-grid, .loan-form { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: 1fr; }
+  .metrics div + div { border-left: 0; border-top: 1px solid var(--line); }
+  .panel { padding: 15px; }
+}

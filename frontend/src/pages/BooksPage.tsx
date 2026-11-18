@@ -1,136 +1,55 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { API_URL } from "../api";
+import { type FormEvent } from "react";
 import type { Book } from "../types";
 
-const EMPTY_FORM = { title: "", author: "", year: "", copies: "" };
+type Props = {
+  books?: Book[];
+  busy: boolean;
+  onCreate: (book: { title: string; author: string; year: number; copies: number }) => Promise<boolean>;
+};
 
-export default function BooksPage() {
-  const [books, setBooks] = useState<Book[]>([]);
-  const [loadError, setLoadError] = useState("");
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [errors, setErrors] = useState<string[]>([]);
-  const [success, setSuccess] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  async function loadBooks() {
-    const response = await fetch(`${API_URL}/books`);
-    setBooks(await response.json());
-  }
-
-  useEffect(() => {
-    fetch(`${API_URL}/books`)
-      .then((response) => response.json())
-      .then(setBooks)
-      .catch(() =>
-        setLoadError("Não foi possível carregar o acervo. A API está rodando?"),
-      );
-  }, []);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+export default function BooksPage({ books, busy, onCreate }: Props) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setErrors([]);
-    setSuccess("");
-    setSubmitting(true);
-
-    try {
-      const response = await fetch(`${API_URL}/books`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: form.title,
-          author: form.author,
-          year: Number(form.year),
-          copies: Number(form.copies),
-        }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        setErrors(data.errors ?? ["Não foi possível cadastrar o livro."]);
-        return;
-      }
-
-      setSuccess(`"${data.title}" cadastrado com sucesso!`);
-      setForm(EMPTY_FORM);
-      await loadBooks();
-    } catch {
-      setErrors(["Não foi possível conectar à API."]);
-    } finally {
-      setSubmitting(false);
-    }
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    if (await onCreate({
+      title: String(data.get("title")).trim(),
+      author: String(data.get("author")).trim(),
+      year: Number(data.get("year")),
+      copies: Number(data.get("copies")),
+    })) form.reset();
   }
 
   return (
-    <section>
-      <h2>Cadastrar livro</h2>
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: "grid", gap: 8, maxWidth: 400 }}
-      >
-        <input
-          placeholder="Título"
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-        />
-        <input
-          placeholder="Autor"
-          value={form.author}
-          onChange={(e) => setForm({ ...form, author: e.target.value })}
-        />
-        <input
-          type="number"
-          placeholder="Ano de publicação"
-          value={form.year}
-          onChange={(e) => setForm({ ...form, year: e.target.value })}
-        />
-        <input
-          type="number"
-          placeholder="Quantidade de cópias"
-          value={form.copies}
-          onChange={(e) => setForm({ ...form, copies: e.target.value })}
-        />
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Cadastrando..." : "Cadastrar"}
-        </button>
-      </form>
-
-      {errors.length > 0 && (
-        <ul style={{ color: "crimson" }}>
-          {errors.map((error) => (
-            <li key={error}>{error}</li>
-          ))}
-        </ul>
-      )}
-      {success && <p style={{ color: "green" }}>{success}</p>}
-
-      <h2>Acervo</h2>
-      {loadError && <p style={{ color: "crimson" }}>{loadError}</p>}
-      {books.length === 0 ? (
-        <p>Nenhum livro cadastrado ainda.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Título</th>
-              <th>Autor</th>
-              <th>Ano</th>
-              <th>Disponíveis</th>
-            </tr>
-          </thead>
-          <tbody>
-            {books.map((book) => (
-              <tr key={book.id}>
-                <td>{book.title}</td>
-                <td>{book.author}</td>
-                <td>{book.year}</td>
-                <td>
-                  {book.availableCopies} de {book.totalCopies}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </section>
+    <>
+      <section className="panel">
+        <h2>Cadastrar livro</h2>
+        <form className="form-grid" onSubmit={submit}>
+          <label>Título<input name="title" required /></label>
+          <label>Autor<input name="author" required /></label>
+          <label>Ano<input name="year" type="number" min="1" required /></label>
+          <label>Quantidade de cópias<input name="copies" type="number" min="0" required /></label>
+          <button className="primary" disabled={busy}>Cadastrar livro</button>
+        </form>
+      </section>
+      {books && <section className="panel">
+        <h2>Acervo</h2>
+        {books.length === 0 ? <p className="muted">Nenhum livro cadastrado.</p> : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Título</th><th>Autor</th><th>Ano</th><th>Disponibilidade</th></tr></thead>
+              <tbody>{books.map((book) => (
+                <tr key={book.id}>
+                  <td><strong>{book.title}</strong></td><td>{book.author}</td><td>{book.year}</td>
+                  <td><span className={book.availableCopies === 0 ? "pill warning" : "pill"}>
+                    {book.availableCopies === 0 ? "Sem cópias" : `${book.availableCopies} de ${book.totalCopies}`}
+                  </span></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>}
+    </>
   );
 }
