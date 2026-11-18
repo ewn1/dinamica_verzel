@@ -4,6 +4,7 @@ import { db } from "./db";
 import booksRouter from "./routes/books";
 import loansRouter from "./routes/loans";
 import reportsRouter from "./routes/reports";
+import loansExportRouter from "./routes/loansExport";
 
 const app = express();
 app.use(cors());
@@ -14,6 +15,7 @@ app.get("/users", (_req, res) => {
 });
 
 app.use("/books", booksRouter);
+app.use("/loans", loansExportRouter);
 app.use("/loans", loansRouter);
 app.use("/reports", reportsRouter);
 
