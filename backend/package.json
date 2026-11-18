@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-"test": "vitest run tests && tsx --test src/routes/loans.test.ts",
+  "test": "vitest run tests && tsx --test src/routes/loans.test.ts",
   "dev": "tsx watch src/server.ts"
   },
   "keywords": [],
