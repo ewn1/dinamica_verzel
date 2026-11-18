@@ -1,35 +1,33 @@
-type ExportLoansButtonProps = {
-  userId?: string;
-  from?: string;
-  to?: string;
-  status?: string;
-};
+import { API_URL } from "../api";
+import {
+  buildLoanQuery,
+  type LoanFilterValues,
+} from "../services/loanReport";
+
+interface Props {
+  filters: LoanFilterValues;
+  disabled?: boolean;
+}
 
 export default function ExportLoansButton({
-  userId,
-  from,
-  to,
-  status,
-}: ExportLoansButtonProps) {
+  filters,
+  disabled = false,
+}: Props) {
   function handleExport() {
-    const params = new URLSearchParams();
-
-    if (userId) params.set("userId", userId);
-    if (from) params.set("from", from);
-    if (to) params.set("to", to);
-    if (status) params.set("status", status);
-
-    const query = params.toString();
-
-    const url = `http://localhost:3333/loans/export.csv${
+    const query = buildLoanQuery(filters);
+    const url = `${API_URL}/loans/export.csv${
       query ? `?${query}` : ""
     }`;
 
-    window.location.href = url;
+    window.location.assign(url);
   }
 
   return (
-    <button type="button" onClick={handleExport}>
+    <button
+      type="button"
+      onClick={handleExport}
+      disabled={disabled}
+    >
       Exportar CSV
     </button>
   );
