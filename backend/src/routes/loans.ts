@@ -1,105 +1,137 @@
 import { Router } from "express";
-import type { Book, Loan, User } from "../types";
+import { db, nextLoanId } from "../db";
+import type { Book, Loan } from "../types";
 
-type NewLoan = Pick<Loan, "bookId" | "userId"> & {
-  status: "active";
-  loanDate: Date;
-  returnDate: null;
-};
-
-type LoanTransaction = {
-  book: {
-    findUnique(args: { where: { id: number } }): Promise<Book | null>;
-    updateMany(args: {
-      where: { id: number; availableCopies: { gt: number } };
-      data: { availableCopies: { decrement: number } };
-    }): Promise<{ count: number }>;
-  };
-  user: {
-    findUnique(args: { where: { id: number } }): Promise<User | null>;
-  };
-  loan: {
-    count(args: { where: { userId: number; status: "active" } }): Promise<number>;
-    create(args: { data: NewLoan }): Promise<Omit<Loan, "status" | "loanDate" | "returnDate"> & {
-      status: string;
-      loanDate: Date;
-      returnDate: Date | null;
-    }>;
-  };
-};
-
-export type LoansPrisma = {
-  $transaction<T>(operation: (transaction: LoanTransaction) => Promise<T>): Promise<T>;
-};
-
-class LoanError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
-}
+const router = Router();
 
 function isValidId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-export function createLoansRouter(prisma?: LoansPrisma) {
-  const router = Router();
+// Keep the two writes synchronous so other requests cannot observe an intermediate state.
+function updateStockAndLoan(book: Book, change: number, loan: Loan, index?: number) {
+  const loans = db.loans;
+  const previousStock = book.availableCopies;
+  const previousLength = loans.length;
+  const previousLoan = index === undefined ? undefined : loans[index];
 
-  router.post("/", async (req, res) => {
-    if (!prisma) {
-      res.status(503).json({ errors: ["O serviço de empréstimos está indisponível."] });
-      return;
+  try {
+    book.availableCopies = previousStock + change;
+    if (index === undefined) {
+      loans.push(loan);
+    } else {
+      loans[index] = loan;
     }
-
-    const { bookId, userId } = req.body ?? {};
-    if (!isValidId(bookId) || !isValidId(userId)) {
-      res.status(400).json({ errors: ["Informe IDs válidos para o livro e o usuário."] });
-      return;
-    }
-
+  } catch (error) {
     try {
-      const loan = await prisma.$transaction(async (transaction) => {
-        const book = await transaction.book.findUnique({ where: { id: bookId } });
-        if (!book) throw new LoanError(404, "Livro não encontrado.");
-
-        const user = await transaction.user.findUnique({ where: { id: userId } });
-        if (!user) throw new LoanError(404, "Usuário não encontrado.");
-
-        if (book.availableCopies <= 0) {
-          throw new LoanError(409, "Não há cópias disponíveis para empréstimo.");
-        }
-
-        const activeLoans = await transaction.loan.count({
-          where: { userId, status: "active" },
-        });
-        if (activeLoans >= 3) {
-          throw new LoanError(409, "O usuário já possui três empréstimos ativos.");
-        }
-
-        const stock = await transaction.book.updateMany({
-          where: { id: bookId, availableCopies: { gt: 0 } },
-          data: { availableCopies: { decrement: 1 } },
-        });
-        if (stock.count === 0) {
-          throw new LoanError(409, "Não há cópias disponíveis para empréstimo.");
-        }
-
-        return transaction.loan.create({
-          data: { bookId, userId, status: "active", loanDate: new Date(), returnDate: null },
-        });
-      });
-
-      res.status(201).json(loan);
-    } catch (error) {
-      if (error instanceof LoanError) {
-        res.status(error.status).json({ errors: [error.message] });
-        return;
+      if (index !== undefined && previousLoan !== undefined && loans[index] !== previousLoan) {
+        loans[index] = previousLoan;
       }
-      res.status(500).json({ errors: ["Não foi possível registrar o empréstimo."] });
+      if (loans.length !== previousLength) {
+        loans.length = previousLength;
+      }
+    } finally {
+      if (!Object.is(book.availableCopies, previousStock)) {
+        book.availableCopies = previousStock;
+      }
     }
-  });
-
-  return router;
+    throw error;
+  }
 }
 
-export default createLoansRouter();
+router.post("/", (req, res) => {
+  const { bookId, userId } = req.body ?? {};
+  if (!isValidId(bookId) || !isValidId(userId)) {
+    res.status(400).json({ errors: ["Informe IDs válidos para o livro e o usuário."] });
+    return;
+  }
+
+  const book = db.books.find((item) => item.id === bookId);
+  if (!book) {
+    res.status(404).json({ errors: ["Livro não encontrado."] });
+    return;
+  }
+
+  if (!db.users.some((user) => user.id === userId)) {
+    res.status(404).json({ errors: ["Usuário não encontrado."] });
+    return;
+  }
+
+  if (book.availableCopies <= 0) {
+    res.status(409).json({ errors: ["Não há cópias disponíveis para empréstimo."] });
+    return;
+  }
+
+  const activeLoans = db.loans.filter((loan) => loan.userId === userId && loan.status === "active");
+  if (activeLoans.length >= 3) {
+    res.status(409).json({ errors: ["O usuário já possui três empréstimos ativos."] });
+    return;
+  }
+
+  const loan: Loan = {
+    id: nextLoanId(),
+    bookId,
+    userId,
+    status: "active",
+    loanDate: new Date().toISOString(),
+    returnDate: null,
+  };
+
+  try {
+    updateStockAndLoan(book, -1, loan);
+  } catch {
+    res.status(500).json({ errors: ["Não foi possível registrar o empréstimo."] });
+    return;
+  }
+
+  res.status(201).json(loan);
+});
+
+router.post("/:id/return", (req, res) => {
+  const rawId = req.params.id;
+  const id = Number(rawId);
+  if (!/^\d+$/.test(rawId) || !isValidId(id)) {
+    res.status(400).json({ errors: ["Informe um ID válido para o empréstimo."] });
+    return;
+  }
+
+  const index = db.loans.findIndex((item) => item.id === id);
+  if (index === -1) {
+    res.status(404).json({ errors: ["Empréstimo não encontrado."] });
+    return;
+  }
+
+  const loan = db.loans[index];
+  if (loan.status !== "active") {
+    res.status(409).json({ errors: ["Este empréstimo já foi devolvido."] });
+    return;
+  }
+
+  const book = db.books.find((item) => item.id === loan.bookId);
+  if (!book) {
+    res.status(409).json({ errors: ["O livro associado ao empréstimo não foi encontrado."] });
+    return;
+  }
+
+  if (book.availableCopies >= book.totalCopies) {
+    res.status(409).json({ errors: ["O estoque já está no limite de cópias do livro."] });
+    return;
+  }
+
+  const returned: Loan = {
+    ...loan,
+    status: "returned",
+    returnDate: new Date().toISOString(),
+  };
+
+  try {
+    updateStockAndLoan(book, 1, returned, index);
+  } catch {
+    res.status(500).json({ errors: ["Não foi possível registrar a devolução."] });
+    return;
+  }
+
+  res.status(200).json(returned);
+});
+
+export default router;
