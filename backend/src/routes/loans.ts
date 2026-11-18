@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db, nextLoanId } from "../db";
+import { generateLoanReport, parseLoanFilters } from "../services/loanReport";
 import type { Book, Loan } from "../types";
 
 const router = Router();
@@ -8,7 +9,6 @@ function isValidId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-// Keep the two writes synchronous so other requests cannot observe an intermediate state.
 function updateStockAndLoan(book: Book, change: number, loan: Loan, index?: number) {
   const loans = db.loans;
   const previousStock = book.availableCopies;
@@ -38,6 +38,17 @@ function updateStockAndLoan(book: Book, change: number, loan: Loan, index?: numb
     throw error;
   }
 }
+
+router.get("/", (req, res) => {
+  const { filters, errors } = parseLoanFilters(req.query);
+
+  if (errors.length > 0) {
+    res.status(400).json({ errors });
+    return;
+  }
+
+  res.json(generateLoanReport(db, filters));
+});
 
 router.post("/", (req, res) => {
   const { bookId, userId } = req.body ?? {};
